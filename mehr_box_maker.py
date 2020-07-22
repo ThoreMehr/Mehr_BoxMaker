@@ -1,91 +1,199 @@
-__version__ = "1.0" 
-import inkex,simplestyle,math
-from lxml import etree
+ #! /usr/bin/env python
+'''
+Generates Inkscape SVG file containing box components needed to 
+laser cut a tabbed construction box taking kerf into account
 
-class Mehr_plate():
-  def __init__(self,size,tabs,starts,thickness,kerf):
-    #general note svg pos x is right, pos y is down
-    self.size=size#(X,Y) inner size
-    self.tabs=tabs#number of tabs (top,right,bottom,left)
-    self.starts=starts#4 elements array of boolean if true start=high (top,right,bottom,left)
-    self.kerf=kerf#number, beam radius
-    self.thickness=thickness#number
-    self.holes=[]#list of SVG Strings
-    self.offset=[0.0 if self.starts[3] or self.tabs[3]==0 else self.thickness,0.0 if self.starts[0] or self.tabs[0]==0 else self.thickness]#set global offset so that AABB is at position (0,0)
-    self.corner_offset=[0.0 if (self.tabs[3]==0 and not self.starts[3]) else self.thickness,0.0 if (self.tabs[0]==0 and not self.starts[0]) else self.thickness]
-    self.AABB=[self.size[0]+(0.0 if (self.tabs[1]==0 and not self.starts[1]) else self.thickness)+self.corner_offset[0]+2*self.kerf,
-    self.size[1]+(0.0 if (self.tabs[2]==0 and not self.starts[2]) else self.thickness)+self.corner_offset[1]+2*self.kerf]
+Copyright (C) 2018 Thore Mehr thore.mehr@gmail.com
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    points=[]
-    for i in range(4):
-        points+=self.rotate(self.side(i),i*math.pi/2)#creating the points of the four sides and rotate them in the radiant system
-    self.SVG_String=self.to_SVG_String(points)
-    #self.AABB=[self.size[0]+2*self.thickness,0]
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+__version__ = "1.0" ### please report bugs, suggestions etc to bugs@twot.eu ###
+
+import math,inkex,simplestyle,mehr_plate
+
+class mehr_box_maker(inkex.Effect):
+  def __init__(self):
+      # Call the base class constructor.
+      inkex.Effect.__init__(self)
+      # Define options
+      self.arg_parser.add_argument('--page',action='store',type=str,dest='page',default='page_1')
+      self.arg_parser.add_argument('--unit',action='store',type=str,dest='unit',default='mm')
+      self.arg_parser.add_argument('--inside',action='store',type=str,dest='inside')
+     
+      self.arg_parser.add_argument('--X_size',action='store',type=float,dest='X_size',default='0.0')
+      self.arg_parser.add_argument('--Y_size',action='store',type=float,dest='Y_size',default='0.0')
+      self.arg_parser.add_argument('--Z_size',action='store',type=float,dest='Z_size',default='0.0')
+        
+      self.arg_parser.add_argument('--tab_mode',action='store',type=str,dest='tab_mode',default='number')
+      self.arg_parser.add_argument('--tab_size',action='store',type=float,dest='tab_size',default='0.0')
+        
+        
+      self.arg_parser.add_argument('--X_tabs',action='store',type=int,dest='X_tabs',default='0')
+      self.arg_parser.add_argument('--Y_tabs',action='store',type=int,dest='Y_tabs',default='0')
+      self.arg_parser.add_argument('--Z_tabs',action='store',type=int,dest='Z_tabs',default='0')
+        
+      self.arg_parser.add_argument('--d_top',action='store',type=inkex.Boolean,dest='d_top',default=True)
+      self.arg_parser.add_argument('--d_bottom',action='store',type=inkex.Boolean,dest='d_bottom',default=True)
+      self.arg_parser.add_argument('--d_left',action='store',type=inkex.Boolean,dest='d_left',default=True)
+      self.arg_parser.add_argument('--d_right',action='store',type=inkex.Boolean,dest='d_right',default=True)
+      self.arg_parser.add_argument('--d_front',action='store',type=inkex.Boolean,dest='d_front',default=True)
+      self.arg_parser.add_argument('--d_back',action='store',type=inkex.Boolean,dest='d_back',default=True)
+
+      self.arg_parser.add_argument('--thickness',action='store',type=float,dest='thickness',default=4,help='Thickness of Material')
+      self.arg_parser.add_argument('--kerf',action='store',type=float,dest='kerf',default=0.2)
+      self.arg_parser.add_argument('--spaceing',action='store',type=float,dest='spaceing',default=1)
+        
+      self.arg_parser.add_argument('--X_compartments',action='store',type=int,dest='X_compartments',default=1)
+      self.arg_parser.add_argument('--X_divisions',action='store',type=str,dest='X_divisions')
+      self.arg_parser.add_argument('--X_mode',action='store',type=str,dest='X_mode')
+      self.arg_parser.add_argument('--X_fit',action='store',type=inkex.Boolean,dest='X_fit')
+
+      self.arg_parser.add_argument('--Y_compartments',action='store',type=int,dest='Y_compartments',default=1)
+      self.arg_parser.add_argument('--Y_divisions',action='store',type=str,dest='Y_divisions')
+      self.arg_parser.add_argument('--Y_mode',action='store',type=str,dest='Y_mode')
+      self.arg_parser.add_argument('--Y_fit',action='store',type=inkex.Boolean,dest='Y_fit')
+
+  
+  def effect(self):
+    thickness=self.svg.unittouu(str(self.options.thickness)+self.options.unit)
+    kerf=self.svg.unittouu(str(self.options.kerf)+self.options.unit)/2#kerf is diameter in UI and radius in lib
     
-  def side(self,index): #creating a side as a list of relative points. total lenght should be side lenght+2*kerf.
-    points=[[2*self.kerf,0.0]] if not self.starts[index] else [] #if this one starts low add two kerf
-    if (self.starts[(index-1)%4]):#if the privious one ended high add a thickness
-      points+=[[self.thickness,0.0]]
-    if self.tabs[index]>0:
-      parts=self.tabs[index]*2+1#number of parts= number of tabs+number of spaces between tabs +1
-      tab_state=self.starts[index]#makes a high part if true, low else
-      for i in range(parts):#creates the side
-        points+=[[(self.size[(index%2)]/parts)+2*self.kerf,0.0]] if (tab_state) else [[(self.size[index%2]/parts)-2*self.kerf,0.0]]#a longer part for tabs and a shorter one for the spaces in between
-        if not (i==parts-1):
-          points+=[[0.0,self.thickness]] if (tab_state) else [[0.0,-self.thickness]]# if high go down else go up
-          tab_state=not tab_state #invert tab_state
-    else:
-      points+=[[self.size[index%2]+2*self.kerf,0.0]] if (self.starts[index]) else [[self.size[index%2]-2*self.kerf,0.0]]#single line if there are no tabs
-    if(self.starts[(index+1)%len(self.starts)]):#if the next one starts high add a thickness
-      points+=[[self.thickness,0.0]]
-    if not self.starts[index]:#if this one starts and so also ends low add 2 kerf
-      points+=[[2*self.kerf,0.0]]
-    return points
-  
-  def to_SVG_String(self,PointList):#creates a SVG_String as connected points from list so that AABB upper left corner is at 0,0
-    s="M"+str(self.offset[0])+','+str(self.offset[1])
-    for i in range(len(PointList)):
-      s+="l"+str(PointList[i][0])+","+str(PointList[i][1])
-    return s
-  
-  def rotate(self,pointlist,angle):#rotate all points by angle in 2*pi system
-    matrix=[[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
-    ret=[]
-    for i in range(len(pointlist)):
-      ret+=[[pointlist[i][0]*matrix[0][0]+pointlist[i][1]*matrix[0][1],pointlist[i][0]*matrix[1][0]+pointlist[i][1]*matrix[1][1]]]
-    return ret
-  
-  def rect(self,pos,size,center=[False,False]):#SVG_String for a rectangle
-    SVG_String="M"+str(pos[0]-((size[0]/2)if center[0]else 0))+','+str(pos[1]-((size[1]/2)if center[1]else 0))
-    SVG_String+='h'+str(size[0])+'v'+str(size[1])+'h'+str(-size[0])+'z'
-    return SVG_String
-  
-  def add_holes(self,direction,position,number_of,center=False):
-    SVG_String=""
-    side=self.size[0] if direction=='X' else self.size[1]#geting size of the relevant side
-    hole_offset=(side/(2*number_of+1))#offset each hole
-    holesize=[hole_offset-2*self.kerf,self.thickness-2*self.kerf]#size of the holes
-    for i in range(number_of):#d=(2*i+1)*hole_offset+self.kerf
-      if direction=='X':
-        SVG_String+=self.rect([self.corner_offset[0]+self.kerf+(2*i+1)*hole_offset+self.kerf,self.corner_offset[1]+self.kerf+position],holesize,[False,center])
-      else:
-        SVG_String+=self.rect([self.corner_offset[0]+self.kerf+position,(2*i+1)*hole_offset+self.kerf+self.corner_offset[1]+self.kerf],holesize[::-1],[center,False])#reversed axis
-#    inkex.errormsg(SVG_String)
-    self.holes+=[SVG_String]
-  
-  def draw(self,position,colors,parent):
-    if len(self.holes)>0:#creating a new group if there are any holes to be drawn
-      grp_name = 'Group'
-      grp_attribs = {inkex.addNS('label','inkscape'):grp_name}
-      parent = etree.SubElement(parent, 'g', grp_attribs)#the group to put everything in
-      for s in self.holes:
-        self.draw_SVG_String(s,colors[1],parent,position)#drawing the holes if there are any
-    self.draw_SVG_String(self.SVG_String,colors[0],parent,position)#drawing the plate    
+    spaceing=self.svg.unittouu(str(self.options.spaceing)+self.options.unit)
+    XYZ=[self.svg.unittouu(str(self.options.X_size)+self.options.unit),self.svg.unittouu(str(self.options.Y_size)+self.options.unit),self.svg.unittouu(str(self.options.Z_size)+self.options.unit)]
 
-  def draw_SVG_String(self,SVG_String,color,parent,position=(0,0)):# Adding an SVG_String to the drawing
-    name='part'
-    transform='translate('+str(position[0])+','+str(position[1])+')'
-    style = { 'stroke': color, 'fill': 'none','stroke-width':str(max(self.kerf*2,0.2))}
-    drw = {'style':str(inkex.Style(style)),'transform':transform, inkex.addNS('label','inkscape'):name,'d':SVG_String}
-    etree.SubElement(parent, inkex.addNS('path','svg'), drw )
-    return
+    if(self.options.inside=='0'):#if the sizes are outside sizes reduce the size by thickness if the side gets drawn
+      draw=(self.options.d_left,self.options.d_front,self.options.d_top,self.options.d_right,self.options.d_back,self.options.d_bottom)#order in XYZXYZ
+      for i in range(6):
+        XYZ[i%3]-=(thickness if draw[i] else 0)#remove a thickness if drawn
+
+#compartments on the X axis, devisons in Y direction
+    X_divisions_distances=[]
+    if (self.options.X_compartments>1):
+      if (self.options.X_mode=='even'):#spliting in even compartments
+        X_divisions_distances=[((XYZ[0])-(self.options.X_compartments-1)*(thickness))/self.options.X_compartments]
+      else:
+        for dist in self.options.X_divisions.replace(",",".").split(";"):#fixing seperator, spliting string
+          X_divisions_distances+=[float(self.svg.unittouu(dist+self.options.unit))]#translate into universal units
+      X_divisions_distances[0]+=kerf#fixing for kerf
+      if self.options.X_mode!='absolut':#for even and relative fix list lenght and offset compartments to absolut distances
+        while (len(X_divisions_distances)<self.options.X_compartments+1):#making the list long enought for relative offsets
+          X_divisions_distances+=X_divisions_distances
+        for i in range(1,self.options.X_compartments):#offset to absolut distances
+          X_divisions_distances[i]+=X_divisions_distances[i-1]+thickness-kerf
+      X_divisions_distances=X_divisions_distances[0:self.options.X_compartments]#cutting excesive lenght off
+      
+      if(X_divisions_distances[-2]+thickness>XYZ[0])and not self.options.X_fit:
+        inkex.errormsg("X Axis compartments outside of plate")
+      if self.options.X_fit:
+        XYZ[0]=X_divisions_distances[-1]-kerf
+      X_divisions_distances=X_divisions_distances[0:-1]#cutting the last of
+
+    Y_divisions_distances=[]
+    if (self.options.Y_compartments>1):
+      if (self.options.Y_mode=='even'):#spliting in even compartments
+        Y_divisions_distances=[((XYZ[1])-(self.options.Y_compartments-1)*(thickness))/self.options.Y_compartments]
+      else:
+        for dist in self.options.Y_divisions.replace(",",".").split(";"):#fixing seperator, spliting string
+          Y_divisions_distances+=[float(self.svg.unittouu(dist+self.options.unit))]#translate into universal units
+      Y_divisions_distances[0]+=kerf#fixing for kerf
+      if self.options.Y_mode!='absolut':#for even and relative fix list lenght and offset compartments to absolut distances
+        while (len(Y_divisions_distances)<self.options.Y_compartments+1):#making the list long enought for relative offsets
+          Y_divisions_distances+=Y_divisions_distances
+        for i in range(1,self.options.Y_compartments):#offset to absolut distances
+          Y_divisions_distances[i]+=Y_divisions_distances[i-1]+thickness-kerf
+      Y_divisions_distances=Y_divisions_distances[0:self.options.Y_compartments]#cutting excesive lenght off
+      
+      if(Y_divisions_distances[-2]+thickness>XYZ[1])and not self.options.X_fit:
+        inkex.errormsg("Y Axis compartments outside of plate")
+      if self.options.Y_fit:
+        XYZ[1]=Y_divisions_distances[-1]-kerf
+      Y_divisions_distances=Y_divisions_distances[0:-1]#cutting the last of
+
+    if (self.options.tab_mode=='number'):#fixed number of tabs
+      Tabs_XYZ=[self.options.X_tabs,self.options.Y_tabs,self.options.Z_tabs]
+    else:#compute apropriate number of tabs for the edges
+      tab_size=float(self.svg.unittouu(str(self.options.tab_size)+self.options.unit))
+      Tabs_XYZ=[max(1,int(XYZ[0]/(tab_size))/2),max(1,int(XYZ[1]/(tab_size))/2),max(1,int(XYZ[2]/(tab_size))/2)]
+	
+    
+#top and bottom plate
+    tabs_tb=(Tabs_XYZ[0] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_left else 0)
+    start_tb=(True  if self.options.d_back else False,True  if self.options.d_right else False,True  if self.options.d_front else False,True  if self.options.d_left else False)
+    Plate_tb=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[1]),tabs_tb,start_tb,thickness,kerf)#top and bottom plate
+    for d in X_divisions_distances:
+      Plate_tb.add_holes('Y',d,Tabs_XYZ[1])
+    for d in Y_divisions_distances:
+      Plate_tb.add_holes('X',d,Tabs_XYZ[0])
+#left and right plate
+    tabs_lr=(Tabs_XYZ[2] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_top else 0,Tabs_XYZ[2] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_bottom else 0) 
+    start_lr=(True  if self.options.d_back else False,False,True  if self.options.d_front else False,False)
+    Plate_lr=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,start_lr,thickness,kerf)#left and right plate
+    for d in Y_divisions_distances:
+      Plate_lr.add_holes('X',d,Tabs_XYZ[2])
+#front and back plate
+    tabs_fb=(Tabs_XYZ[0] if self.options.d_top else 0,Tabs_XYZ[2] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_bottom else 0,Tabs_XYZ[2] if self.options.d_left else 0)#
+    start_fb=(False,False,False,False)
+    Plate_fb=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,start_fb,thickness,kerf)#font and back plate
+    for d in X_divisions_distances:
+      Plate_fb.add_holes('Y',d,Tabs_XYZ[2])
+
+    Plate_xc=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,(False,False,False,False),thickness,kerf)
+    for d in Y_divisions_distances:
+      Plate_xc.holes+=[Plate_xc.rect([0,Plate_xc.corner_offset[1]+d+kerf],[Plate_xc.AABB[0]/2-kerf,thickness-2*kerf])]
+     
+    Plate_yc=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,(False,False,False,False),thickness,kerf)
+    for d in X_divisions_distances:
+      Plate_yc.holes+=[Plate_yc.rect([Plate_yc.corner_offset[0]+d+kerf,0],[thickness-2*kerf,Plate_yc.AABB[1]/2-kerf])]
+
+     
+    X_offset=0
+    Y_offset=0
+    if(self.options.d_top):
+      Plate_tb.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())#drawing a plate using black for the outline and red for holes
+      X_offset+=Plate_tb.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_tb.AABB[1])
+    if(self.options.d_bottom):
+      Plate_tb.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_tb.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_tb.AABB[1])
+      
+    if(self.options.d_left):
+      Plate_lr.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_lr.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_lr.AABB[1])
+    if(self.options.d_right):
+      Plate_lr.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_lr.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_lr.AABB[1])
+      
+    if(self.options.d_front):
+      Plate_fb.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_fb.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_fb.AABB[1])
+    if(self.options.d_back):
+      Plate_fb.draw([X_offset+spaceing,spaceing],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_fb.AABB[0]+spaceing
+      Y_offset=max(Y_offset,Plate_fb.AABB[1])
+    X_offset=0
+    for i in range(self.options.X_compartments-1):
+      Plate_xc.draw([X_offset+spaceing,spaceing+Y_offset],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_xc.AABB[0]+spaceing
+    X_offset=0
+    Y_offset+=spaceing+Plate_xc.AABB[1]
+    for i in range(self.options.Y_compartments-1):
+      Plate_yc.draw([X_offset+spaceing,spaceing+Y_offset],["#000000","#ff0000"],self.svg.get_current_layer())
+      X_offset+=Plate_yc.AABB[0]+spaceing
+    
+    
+effect = mehr_box_maker()
+effect.run()
