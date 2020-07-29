@@ -1,4 +1,4 @@
- #! /usr/bin/env python
+#!/usr/bin/env python3
 '''
 Generates Inkscape SVG file containing box components needed to 
 laser cut a tabbed construction box taking kerf into account
@@ -19,51 +19,42 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 __version__ = "1.0" ### please report bugs, suggestions etc to bugs@twot.eu ###
 
-import math,inkex,simplestyle,mehr_plate
+import math
+import inkex
+import fablabchemnitz_mehr_plate
 
 class mehr_box_maker(inkex.Effect):
   def __init__(self):
-      # Call the base class constructor.
       inkex.Effect.__init__(self)
-      # Define options
-      self.arg_parser.add_argument('--page',action='store',type=str,dest='page',default='page_1')
-      self.arg_parser.add_argument('--unit',action='store',type=str,dest='unit',default='mm')
-      self.arg_parser.add_argument('--inside',action='store',type=str,dest='inside')
-     
-      self.arg_parser.add_argument('--X_size',action='store',type=float,dest='X_size',default='0.0')
-      self.arg_parser.add_argument('--Y_size',action='store',type=float,dest='Y_size',default='0.0')
-      self.arg_parser.add_argument('--Z_size',action='store',type=float,dest='Z_size',default='0.0')
-        
-      self.arg_parser.add_argument('--tab_mode',action='store',type=str,dest='tab_mode',default='number')
-      self.arg_parser.add_argument('--tab_size',action='store',type=float,dest='tab_size',default='0.0')
-        
-        
-      self.arg_parser.add_argument('--X_tabs',action='store',type=int,dest='X_tabs',default='0')
-      self.arg_parser.add_argument('--Y_tabs',action='store',type=int,dest='Y_tabs',default='0')
-      self.arg_parser.add_argument('--Z_tabs',action='store',type=int,dest='Z_tabs',default='0')
-        
-      self.arg_parser.add_argument('--d_top',action='store',type=inkex.Boolean,dest='d_top',default=True)
-      self.arg_parser.add_argument('--d_bottom',action='store',type=inkex.Boolean,dest='d_bottom',default=True)
-      self.arg_parser.add_argument('--d_left',action='store',type=inkex.Boolean,dest='d_left',default=True)
-      self.arg_parser.add_argument('--d_right',action='store',type=inkex.Boolean,dest='d_right',default=True)
-      self.arg_parser.add_argument('--d_front',action='store',type=inkex.Boolean,dest='d_front',default=True)
-      self.arg_parser.add_argument('--d_back',action='store',type=inkex.Boolean,dest='d_back',default=True)
+      self.arg_parser.add_argument('--page',default='page_1')
+      self.arg_parser.add_argument('--unit',default='mm')
+      self.arg_parser.add_argument('--inside')
+      self.arg_parser.add_argument('--X_size',type=float,default='0.0')
+      self.arg_parser.add_argument('--Y_size',type=float,default='0.0')
+      self.arg_parser.add_argument('--Z_size',type=float,default='0.0')
+      self.arg_parser.add_argument('--tab_mode',default='number')
+      self.arg_parser.add_argument('--tab_size',type=float,default='0.0')
+      self.arg_parser.add_argument('--X_tabs',type=int,default='0')
+      self.arg_parser.add_argument('--Y_tabs',type=int,default='0')
+      self.arg_parser.add_argument('--Z_tabs',type=int,default='0')   
+      self.arg_parser.add_argument('--d_top',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--d_bottom',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--d_left',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--d_right',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--d_front',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--d_back',type=inkex.Boolean,default=True)
+      self.arg_parser.add_argument('--thickness',type=float,default=4,help='Thickness of Material')
+      self.arg_parser.add_argument('--kerf',type=float,default=0.2)
+      self.arg_parser.add_argument('--spaceing',type=float,default=1) 
+      self.arg_parser.add_argument('--X_compartments',type=int,default=1)
+      self.arg_parser.add_argument('--X_divisions')
+      self.arg_parser.add_argument('--X_mode')
+      self.arg_parser.add_argument('--X_fit',type=inkex.Boolean)
+      self.arg_parser.add_argument('--Y_compartments',type=int,default=1)
+      self.arg_parser.add_argument('--Y_divisions')
+      self.arg_parser.add_argument('--Y_mode')
+      self.arg_parser.add_argument('--Y_fit',type=inkex.Boolean)
 
-      self.arg_parser.add_argument('--thickness',action='store',type=float,dest='thickness',default=4,help='Thickness of Material')
-      self.arg_parser.add_argument('--kerf',action='store',type=float,dest='kerf',default=0.2)
-      self.arg_parser.add_argument('--spaceing',action='store',type=float,dest='spaceing',default=1)
-        
-      self.arg_parser.add_argument('--X_compartments',action='store',type=int,dest='X_compartments',default=1)
-      self.arg_parser.add_argument('--X_divisions',action='store',type=str,dest='X_divisions')
-      self.arg_parser.add_argument('--X_mode',action='store',type=str,dest='X_mode')
-      self.arg_parser.add_argument('--X_fit',action='store',type=inkex.Boolean,dest='X_fit')
-
-      self.arg_parser.add_argument('--Y_compartments',action='store',type=int,dest='Y_compartments',default=1)
-      self.arg_parser.add_argument('--Y_divisions',action='store',type=str,dest='Y_divisions')
-      self.arg_parser.add_argument('--Y_mode',action='store',type=str,dest='Y_mode')
-      self.arg_parser.add_argument('--Y_fit',action='store',type=inkex.Boolean,dest='Y_fit')
-
-  
   def effect(self):
     thickness=self.svg.unittouu(str(self.options.thickness)+self.options.unit)
     kerf=self.svg.unittouu(str(self.options.kerf)+self.options.unit)/2#kerf is diameter in UI and radius in lib
@@ -124,8 +115,7 @@ class mehr_box_maker(inkex.Effect):
     else:#compute apropriate number of tabs for the edges
       tab_size=float(self.svg.unittouu(str(self.options.tab_size)+self.options.unit))
       Tabs_XYZ=[max(1,int(XYZ[0]/(tab_size))/2),max(1,int(XYZ[1]/(tab_size))/2),max(1,int(XYZ[2]/(tab_size))/2)]
-	
-    
+
 #top and bottom plate
     tabs_tb=(Tabs_XYZ[0] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_left else 0)
     start_tb=(True  if self.options.d_back else False,True  if self.options.d_right else False,True  if self.options.d_front else False,True  if self.options.d_left else False)
@@ -193,7 +183,6 @@ class mehr_box_maker(inkex.Effect):
     for i in range(self.options.Y_compartments-1):
       Plate_yc.draw([X_offset+spaceing,spaceing+Y_offset],["#000000","#ff0000"],self.svg.get_current_layer())
       X_offset+=Plate_yc.AABB[0]+spaceing
-    
     
 effect = mehr_box_maker()
 effect.run()
