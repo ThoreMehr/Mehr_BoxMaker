@@ -1,6 +1,5 @@
-Update for InkScape 1.0__version__ = "1.0" 
+__version__ = "1.0" 
 import inkex,simplestyle,math
-from lxml import etree
 
 class Mehr_plate():
   def __init__(self,size,tabs,starts,thickness,kerf):
@@ -77,7 +76,7 @@ class Mehr_plate():
     if len(self.holes)>0:#creating a new group if there are any holes to be drawn
       grp_name = 'Group'
       grp_attribs = {inkex.addNS('label','inkscape'):grp_name}
-      parent = etree.SubElement(parent, 'g', grp_attribs)#the group to put everything in
+      parent = inkex.etree.SubElement(parent, 'g', grp_attribs)#the group to put everything in
       for s in self.holes:
         self.draw_SVG_String(s,colors[1],parent,position)#drawing the holes if there are any
     self.draw_SVG_String(self.SVG_String,colors[0],parent,position)#drawing the plate    
@@ -86,6 +85,6 @@ class Mehr_plate():
     name='part'
     transform='translate('+str(position[0])+','+str(position[1])+')'
     style = { 'stroke': color, 'fill': 'none','stroke-width':str(max(self.kerf*2,0.2))}
-    drw = {'style':str(inkex.Style(style)),'transform':transform, inkex.addNS('label','inkscape'):name,'d':SVG_String}
-    etree.SubElement(parent, inkex.addNS('path','svg'), drw )
+    drw = {'style':simplestyle.formatStyle(style),'transform':transform, inkex.addNS('label','inkscape'):name,'d':SVG_String}
+    inkex.etree.SubElement(parent, inkex.addNS('path','svg'), drw )
     return
