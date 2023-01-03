@@ -1,4 +1,4 @@
-Update for InkScape 1.0__version__ = "1.0" 
+#Update for InkScape 1.0__version__ = "1.0" 
 import inkex,simplestyle,math
 from lxml import etree
 
