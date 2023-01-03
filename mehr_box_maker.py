@@ -21,7 +21,7 @@ __version__ = "1.0" ### please report bugs, suggestions etc to bugs@twot.eu ###
 
 import math
 import inkex
-import fablabchemnitz_mehr_plate
+import Mehr_plate
 
 class mehr_box_maker(inkex.Effect):
   def __init__(self):
@@ -119,7 +119,7 @@ class mehr_box_maker(inkex.Effect):
 #top and bottom plate
     tabs_tb=(Tabs_XYZ[0] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_left else 0)
     start_tb=(True  if self.options.d_back else False,True  if self.options.d_right else False,True  if self.options.d_front else False,True  if self.options.d_left else False)
-    Plate_tb=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[1]),tabs_tb,start_tb,thickness,kerf)#top and bottom plate
+    Plate_tb=Mehr_plate.Mehr_plate((XYZ[0],XYZ[1]),tabs_tb,start_tb,thickness,kerf)#top and bottom plate
     for d in X_divisions_distances:
       Plate_tb.add_holes('Y',d,Tabs_XYZ[1])
     for d in Y_divisions_distances:
@@ -127,21 +127,21 @@ class mehr_box_maker(inkex.Effect):
 #left and right plate
     tabs_lr=(Tabs_XYZ[2] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_top else 0,Tabs_XYZ[2] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_bottom else 0) 
     start_lr=(True  if self.options.d_back else False,False,True  if self.options.d_front else False,False)
-    Plate_lr=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,start_lr,thickness,kerf)#left and right plate
+    Plate_lr=Mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,start_lr,thickness,kerf)#left and right plate
     for d in Y_divisions_distances:
       Plate_lr.add_holes('X',d,Tabs_XYZ[2])
 #front and back plate
     tabs_fb=(Tabs_XYZ[0] if self.options.d_top else 0,Tabs_XYZ[2] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_bottom else 0,Tabs_XYZ[2] if self.options.d_left else 0)#
     start_fb=(False,False,False,False)
-    Plate_fb=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,start_fb,thickness,kerf)#font and back plate
+    Plate_fb=Mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,start_fb,thickness,kerf)#font and back plate
     for d in X_divisions_distances:
       Plate_fb.add_holes('Y',d,Tabs_XYZ[2])
 
-    Plate_xc=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,(False,False,False,False),thickness,kerf)
+    Plate_xc=Mehr_plate.Mehr_plate((XYZ[2],XYZ[1]),tabs_lr,(False,False,False,False),thickness,kerf)
     for d in Y_divisions_distances:
       Plate_xc.holes+=[Plate_xc.rect([0,Plate_xc.corner_offset[1]+d+kerf],[Plate_xc.AABB[0]/2-kerf,thickness-2*kerf])]
      
-    Plate_yc=fablabchemnitz_mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,(False,False,False,False),thickness,kerf)
+    Plate_yc=Mehr_plate.Mehr_plate((XYZ[0],XYZ[2]),tabs_fb,(False,False,False,False),thickness,kerf)
     for d in X_divisions_distances:
       Plate_yc.holes+=[Plate_yc.rect([Plate_yc.corner_offset[0]+d+kerf,0],[thickness-2*kerf,Plate_yc.AABB[1]/2-kerf])]
 
