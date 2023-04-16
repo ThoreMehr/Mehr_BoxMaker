@@ -114,7 +114,7 @@ class mehr_box_maker(inkex.Effect):
       Tabs_XYZ=[self.options.X_tabs,self.options.Y_tabs,self.options.Z_tabs]
     else:#compute apropriate number of tabs for the edges
       tab_size=float(self.svg.unittouu(str(self.options.tab_size)+self.options.unit))
-      Tabs_XYZ=[max(1,int(XYZ[0]/(tab_size))/2),max(1,int(XYZ[1]/(tab_size))/2),max(1,int(XYZ[2]/(tab_size))/2)]
+      Tabs_XYZ=[max(1,int(XYZ[0]/(tab_size)/2)),max(1,int(XYZ[1]/(tab_size)/2)),max(1,int(XYZ[2]/(tab_size)/2))]
 
 #top and bottom plate
     tabs_tb=(Tabs_XYZ[0] if self.options.d_back else 0,Tabs_XYZ[1] if self.options.d_right else 0,Tabs_XYZ[0] if self.options.d_front else 0,Tabs_XYZ[1] if self.options.d_left else 0)
